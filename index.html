@@ -1,1 +1,698 @@
-<!doctype html><html lang="cs"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#fff7ef"><title>FamilyNest</title><style>:root{font-family:system-ui,-apple-system,sans-serif;color:#30353a;background:#fff8f2}*{box-sizing:border-box}body{margin:0}header{background:linear-gradient(120deg,#fbd7c5,#e2e9d4);padding:28px 20px 20px}main{max-width:650px;margin:auto;padding:18px}h1{margin:0;font-size:30px}h2{font-size:19px;margin:0 0 14px}.sub{color:#555;margin-top:6px}.tabs{display:flex;gap:7px;overflow:auto;padding:12px 0}.tabs button{white-space:nowrap}.panel{background:white;border-radius:18px;padding:20px;margin:12px 0;box-shadow:0 4px 18px #7d604112}.hidden{display:none}button{border:0;border-radius:12px;background:#eee5de;padding:12px;font-weight:650;color:#333;cursor:pointer}.active,.primary{background:#416b61;color:white}input{padding:12px;border:1px solid #d8d7d3;border-radius:12px;font:inherit;min-width:0;flex:1;width:100%}.form{display:flex;gap:8px;flex-wrap:wrap}.form input[type=date]{flex-basis:160px}.item{display:flex;align-items:center;gap:9px;border-bottom:1px solid #eee;padding:10px 0;overflow-wrap:anywhere}.item span{flex:1}.done{text-decoration:line-through;color:#888}.delete{background:#ffeded;color:#a33}.muted{color:#666;font-size:14px}.stat{display:flex;gap:10px;flex-wrap:wrap}.stat div{background:#f5f5ef;padding:14px;border-radius:14px;flex:1;min-width:110px}.stat strong{display:block;font-size:24px}footer{text-align:center;color:#777;padding:22px;font-size:12px} .date-fields{display:flex;gap:8px;width:100%;flex-wrap:wrap}.date-fields label{flex:1;min-width:85px;font-size:13px;font-weight:600}.date-fields select{display:block;width:100%;margin-top:5px;padding:12px;border:1px solid #d8d7d3;border-radius:12px;background:white;font:inherit}.warning{background:#fff0ce;padding:12px;border-radius:12px;margin-top:12px;font-size:14px}.date-fields{display:grid;grid-template-columns:1fr 1fr 1.4fr;gap:8px;width:100%}.date-fields label{font-size:13px;color:#555}.date-fields input{margin-top:5px}.notice{padding:12px;border-radius:12px;background:#fff1d7;color:#694914;margin:12px 0}</style></head><body><header><div style="max-width:650px;margin:auto"><h1>🏡 FamilyNest</h1><p class="sub">Naše rodina, všechno na jednom místě.</p></div></header><main><nav class="tabs" id="tabs"><button class="active" data-tab="home">🏠 Přehled</button><button data-tab="shopping">🛒 Nákupy</button><button data-tab="tasks">✅ Úkoly</button><button data-tab="events">📅 Události</button></nav><section id="home" class="panel"><h2>Rodinný přehled</h2><div class="stat"><div><strong id="shopCount">0</strong>věcí k nákupu</div><div><strong id="taskCount">0</strong>otevřených úkolů</div><div><strong id="eventCount">0</strong>nadcházejících událostí</div></div><p class="muted">Údaje se ukládají jen v tomto prohlížeči, nikoli do online účtu.</p><div id="storageNotice" class="warning">Ověřuji možnost ukládání…</div><button id="export" class="primary">⬇️ Exportovat zálohu</button> <label style="display:inline-block;margin-top:10px">📂 Obnovit zálohu <input type="file" id="import" accept="application/json,.json" style="max-width:190px;font-size:12px"></label></section><section id="shopping" class="panel hidden"><h2>Nákupní seznam</h2><form class="form" data-kind="shopping"><input name="title" placeholder="Např. mléko" maxlength="100" required><button class="primary">Přidat</button></form><div id="shoppingList"></div></section><section id="tasks" class="panel hidden"><h2>Rodinné úkoly</h2><form class="form" data-kind="tasks"><input name="title" placeholder="Např. vynést koš" maxlength="100" required><button class="primary">Přidat</button></form><div id="tasksList"></div></section><section id="events" class="panel hidden"><h2>Rodinné události</h2><form class="form" data-kind="events"><input name="title" placeholder="Např. narozeniny" maxlength="100" required><div class="date-fields"><label>Den<select name="day" required><option value="">Den</option></select></label><label>Měsíc<select name="month" required><option value="">Měsíc</option></select></label><label>Rok<select name="year" required><option value="">Rok</option></select></label></div><button class="primary">Přidat</button></form><div id="eventsList"></div></section></main><footer>FamilyNest • První bezplatná verze</footer><script>const KEY='familynest-v1';let db={shopping:[],tasks:[],events:[]};try{let x=JSON.parse(localStorage.getItem(KEY));if(x&&['shopping','tasks','events'].every(k=>Array.isArray(x[k])))db=x}catch(e){}const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(db));return true}catch(e){alert('Uložení se nezdařilo. Použij Exportovat zálohu.');return false}};const el=(tag,text,cls)=>{let x=document.createElement(tag);if(text!==undefined)x.textContent=text;if(cls)x.className=cls;return x};document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-tab]').forEach(t=>t.classList.toggle('active',t===b));document.querySelectorAll('main section').forEach(s=>s.classList.toggle('hidden',s.id!==b.dataset.tab))});document.querySelectorAll('form[data-kind]').forEach(f=>f.onsubmit=e=>{e.preventDefault();let kind=f.dataset.kind,title=f.elements.title.value.trim(),date='';if(kind==='events'){let d=Number(f.elements.day.value),m=Number(f.elements.month.value),y=Number(f.elements.year.value);let check=new Date(y,m-1,d);if(!d||!m||!y||check.getFullYear()!==y||check.getMonth()!==m-1||check.getDate()!==d){alert('Zkontroluj datum události.');return}date=[y,String(m).padStart(2,'0'),String(d).padStart(2,'0')].join('-')}if(!title)return;db[kind].push({id:crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random(),title,date:date||'',done:false});save();f.reset();render()});function render(){for(let kind of ['shopping','tasks','events']){let root=document.getElementById(kind+'List');root.replaceChildren();let entries=[...db[kind]];if(kind==='events')entries.sort((a,b)=>a.date.localeCompare(b.date));if(!entries.length)root.append(el('p','Zatím tu nic není.','muted'));for(let item of entries){let row=el('div',undefined,'item');if(kind!=='events'){let cb=el('input');cb.type='checkbox';cb.checked=!!item.done;cb.style.flex='0 0 auto';cb.style.width='auto';cb.onchange=()=>{item.done=cb.checked;save();render()};row.append(cb)}let name=el('span',(kind==='events'?formatDate(item.date)+' · ':'')+item.title,item.done?'done':'');row.append(name);let del=el('button','✕','delete');del.setAttribute('aria-label','Smazat '+item.title);del.onclick=()=>{db[kind]=db[kind].filter(x=>x.id!==item.id);save();render()};row.append(del);root.append(row)}}let today=new Date().toLocaleDateString('sv-SE');document.getElementById('shopCount').textContent=db.shopping.filter(x=>!x.done).length;document.getElementById('taskCount').textContent=db.tasks.filter(x=>!x.done).length;document.getElementById('eventCount').textContent=db.events.filter(x=>x.date>=today).length}function formatDate(iso){let m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||'');return m?Number(m[3])+'. '+Number(m[2])+'. '+m[1]:iso}const dateForm=document.querySelector('form[data-kind=events]');for(let d=1;d<=31;d++)dateForm.elements.day.add(new Option(d,d));for(let m=1;m<=12;m++)dateForm.elements.month.add(new Option(m,m));for(let y=new Date().getFullYear()-5;y<=new Date().getFullYear()+30;y++)dateForm.elements.year.add(new Option(y,y));const storageNotice=document.getElementById('storageNotice');try{let k='familynest-test';localStorage.setItem(k,'ok');if(localStorage.getItem(k)!=='ok')throw Error('storage');localStorage.removeItem(k);storageNotice.textContent=location.protocol==='file:'?'⚠️ Aplikace je otevřená ze souboru. Android nemusí zachovat uložená data. Po každé změně použij Exportovat zálohu. Pro spolehlivější ukládání ji otevři z trvalé HTTPS adresy.':'✓ Místní ukládání je dostupné. Data mohou zmizet po vymazání dat prohlížeče. Pravidelně exportuj zálohu.'}catch(e){storageNotice.textContent='⚠️ Prohlížeč nepovoluje místní ukládání. Po změnách exportuj zálohu.'}document.getElementById('export').onclick=()=>{let blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'}),a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download='familynest-zaloha.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};document.getElementById('import').onchange=async e=>{let file=e.target.files[0];if(!file)return;try{let x=JSON.parse(await file.text());if(!x||!['shopping','tasks','events'].every(k=>Array.isArray(x[k])&&x[k].length<10000&&x[k].every(v=>v&&typeof v.title==='string'&&v.title.length<=100&&typeof v.id==='string'&&(k!=='events'||typeof v.date==='string'))))throw Error('Neplatný formát');if(confirm('Nahradit současná data obsahem zálohy?')){db=x;save();render()}}catch(err){alert('Soubor není platná záloha FamilyNest.')}e.target.value=''};try{const test='familynest-storage-test';localStorage.setItem(test,'ok');const ok=localStorage.getItem(test)==='ok';localStorage.removeItem(test);document.getElementById('storageStatus').textContent=ok?'✓ Ukládání je v tomto otevření dostupné. Pokud aplikaci spouštíš ze souboru, nemusí však data vydržet další otevření. Pravidelně exportuj zálohu.':'⚠️ Prohlížeč blokuje ukládání. Použij export zálohy a webovou verzi.'}catch(e){document.getElementById('storageStatus').textContent='⚠️ Ukládání je blokované. Použij export zálohy a webovou verzi.'}render();</script></body></html>
+
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1">
+
+  <title>FamilyNest 2.0</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #fff7f4;
+      color: #403b46;
+    }
+
+    header {
+      background: #f6c5c9;
+      text-align: center;
+      padding: 25px 15px;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 30px;
+    }
+
+    header p {
+      margin-bottom: 0;
+    }
+
+    main {
+      max-width: 650px;
+      margin: auto;
+      padding: 16px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 18px;
+      padding: 18px;
+      margin-bottom: 18px;
+      box-shadow: 0 3px 12px #0000000d;
+    }
+
+    h2 {
+      margin-top: 0;
+      font-size: 21px;
+    }
+
+    input, select, button {
+      font: inherit;
+      border-radius: 10px;
+      padding: 12px;
+    }
+
+    input, select {
+      width: 100%;
+      border: 1px solid #ddd;
+      background: white;
+      margin-bottom: 10px;
+    }
+
+    button {
+      border: none;
+      background: #b66a85;
+      color: white;
+      cursor: pointer;
+    }
+
+    .add {
+      width: 100%;
+      margin-bottom: 8px;
+    }
+
+    .item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 0;
+      border-bottom: 1px solid #eee;
+    }
+
+    .item span {
+      flex: 1;
+      overflow-wrap: anywhere;
+    }
+
+    .done {
+      text-decoration: line-through;
+      opacity: 0.5;
+    }
+
+    .delete {
+      background: #e8a1a1;
+      padding: 8px 12px;
+    }
+
+    .date-fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1.4fr;
+      gap: 8px;
+    }
+
+    .muted {
+      color: #777;
+      font-size: 13px;
+    }
+
+    .success {
+      color: #26754b;
+    }
+
+    .error {
+      color: #b3261e;
+    }
+
+    .backup-buttons {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .backup-buttons button {
+      flex: 1;
+    }
+
+    #restoreFile {
+      display: none;
+    }
+
+    footer {
+      text-align: center;
+      padding: 20px;
+      color: #888;
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <h1>🏡 FamilyNest</h1>
+    <p>Váš rodinný pomocník ❤️</p>
+  </header>
+
+  <main>
+
+    <section class="card">
+      <h2>🌸 Rodinný přehled</h2>
+      <p id="summary"></p>
+      <p id="storageStatus"
+         class="muted"
+         role="status"></p>
+    </section>
+
+    <section class="card">
+      <h2>🛒 Nákupní seznam</h2>
+
+      <form id="shoppingForm">
+        <input
+          id="shoppingInput"
+          placeholder="Co potřebujeme koupit?"
+          maxlength="150"
+          required
+        >
+        <button class="add" type="submit">
+          Přidat nákup
+        </button>
+      </form>
+
+      <div id="shoppingList"></div>
+    </section>
+
+    <section class="card">
+      <h2>✅ Rodinné úkoly</h2>
+
+      <form id="taskForm">
+        <input
+          id="taskInput"
+          placeholder="Nový rodinný úkol"
+          maxlength="150"
+          required
+        >
+        <button class="add" type="submit">
+          Přidat úkol
+        </button>
+      </form>
+
+      <div id="taskList"></div>
+    </section>
+
+    <section class="card">
+      <h2>📅 Rodinné události</h2>
+
+      <form id="eventForm">
+        <input
+          id="eventInput"
+          placeholder="Název události"
+          maxlength="150"
+          required
+        >
+
+        <div class="date-fields">
+          <select id="day" aria-label="Den"></select>
+          <select id="month" aria-label="Měsíc"></select>
+          <select id="year" aria-label="Rok"></select>
+        </div>
+
+        <button class="add" type="submit">
+          Přidat událost
+        </button>
+      </form>
+
+      <div id="eventList"></div>
+    </section>
+
+    <section class="card">
+      <h2>💾 Záloha rodinných údajů</h2>
+
+      <p class="muted">
+        Uložte si zálohu, abyste o své
+        seznamy nepřišli při vymazání
+        dat prohlížeče.
+      </p>
+
+      <div class="backup-buttons">
+        <button id="backupButton" type="button">
+          Stáhnout zálohu
+        </button>
+
+        <button id="restoreButton" type="button">
+          Obnovit zálohu
+        </button>
+      </div>
+
+      <input
+        type="file"
+        id="restoreFile"
+        accept=".json,application/json"
+      >
+    </section>
+
+  </main>
+
+  <footer>
+    FamilyNest 2.0 ❤️
+  </footer>
+
+  <script>
+    "use strict";
+
+    const STORAGE_KEY = "familynest_v2";
+
+    const emptyData = () => ({
+      shopping: [],
+      tasks: [],
+      events: []
+    });
+
+    let data = emptyData();
+    let storageAvailable = false;
+
+    const $ = id => document.getElementById(id);
+
+    function showStatus(message, error = false) {
+      const element = $("storageStatus");
+
+      element.textContent = message;
+      element.className = error
+        ? "muted error"
+        : "muted success";
+    }
+
+    function checkStorage() {
+      try {
+        const key = "familynest_storage_test";
+
+        localStorage.setItem(key, "ok");
+
+        if (localStorage.getItem(key) !== "ok") {
+          return false;
+        }
+
+        localStorage.removeItem(key);
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+
+    function validData(value) {
+      return value &&
+        typeof value === "object" &&
+        Array.isArray(value.shopping) &&
+        Array.isArray(value.tasks) &&
+        Array.isArray(value.events);
+    }
+
+    function loadData() {
+      if (!storageAvailable) {
+        showStatus(
+          "Ukládání v tomto prohlížeči není dostupné.",
+          true
+        );
+        return;
+      }
+
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+
+        if (saved !== null) {
+          const parsed = JSON.parse(saved);
+
+          if (!validData(parsed)) {
+            throw new Error("Neplatná uložená data");
+          }
+
+          data = parsed;
+        }
+
+        showStatus("Ukládání je aktivní.");
+      } catch (error) {
+        showStatus(
+          "Nepodařilo se načíst data. Použijte zálohu.",
+          true
+        );
+      }
+    }
+
+    function saveData() {
+      if (!storageAvailable) {
+        showStatus(
+          "Data se neukládají. Vytvořte si zálohu.",
+          true
+        );
+        return false;
+      }
+
+      try {
+        const serialized = JSON.stringify(data);
+
+        localStorage.setItem(STORAGE_KEY, serialized);
+
+        if (localStorage.getItem(STORAGE_KEY) !== serialized) {
+          throw new Error("Kontrola zápisu selhala");
+        }
+
+        showStatus("Změny byly uloženy.");
+        return true;
+      } catch (error) {
+        showStatus(
+          "Uložení selhalo. Vytvořte si zálohu.",
+          true
+        );
+        return false;
+      }
+    }
+
+    function createButton(text, className, callback) {
+      const button = document.createElement("button");
+
+      button.type = "button";
+      button.textContent = text;
+      button.className = className;
+      button.addEventListener("click", callback);
+
+      return button;
+    }
+
+    function createItem(text, completed, toggle, remove) {
+      const row = document.createElement("div");
+      row.className = "item";
+
+      if (toggle) {
+        const checkbox = document.createElement("input");
+
+        checkbox.type = "checkbox";
+        checkbox.checked = completed;
+        checkbox.style.width = "auto";
+        checkbox.style.margin = "0";
+
+        checkbox.addEventListener("change", toggle);
+        row.appendChild(checkbox);
+      }
+
+      const label = document.createElement("span");
+      label.textContent = text;
+
+      if (completed) {
+        label.className = "done";
+      }
+
+      row.appendChild(label);
+
+      row.appendChild(
+        createButton("✕", "delete", remove)
+      );
+
+      return row;
+    }
+
+    function renderList(containerId, items, type) {
+      const container = $(containerId);
+      container.replaceChildren();
+
+      items.forEach((item, index) => {
+        const toggle = type === "events"
+          ? null
+          : () => {
+              item.done = !item.done;
+              saveData();
+              render();
+            };
+
+        const remove = () => {
+          items.splice(index, 1);
+          saveData();
+          render();
+        };
+
+        const text = type === "events"
+          ? formatDate(item.date) + " – " + item.text
+          : item.text;
+
+        container.appendChild(
+          createItem(text, item.done, toggle, remove)
+        );
+      });
+
+      if (items.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "muted";
+        empty.textContent = "Zatím žádné položky.";
+        container.appendChild(empty);
+      }
+    }
+
+    function formatDate(value) {
+      const parts = value.split("-");
+
+      if (parts.length !== 3) {
+        return value;
+      }
+
+      return (
+        Number(parts[2]) + ". " +
+        Number(parts[1]) + ". " +
+        parts[0]
+      );
+    }
+
+    function render() {
+      renderList(
+        "shoppingList",
+        data.shopping,
+        "shopping"
+      );
+
+      renderList(
+        "taskList",
+        data.tasks,
+        "tasks"
+      );
+
+      data.events.sort((a, b) =>
+        a.date.localeCompare(b.date)
+      );
+
+      renderList(
+        "eventList",
+        data.events,
+        "events"
+      );
+
+      const shoppingCount = data.shopping.filter(
+        item => !item.done
+      ).length;
+
+      const taskCount = data.tasks.filter(
+        item => !item.done
+      ).length;
+
+      const today = new Date();
+      const todayKey = [
+        today.getFullYear(),
+        String(today.getMonth() + 1).padStart(2, "0"),
+        String(today.getDate()).padStart(2, "0")
+      ].join("-");
+
+      const upcomingCount = data.events.filter(
+        item => item.date >= todayKey
+      ).length;
+
+      $("summary").textContent =
+        "🛒 Nákupy: " + shoppingCount +
+        " | ✅ Úkoly: " + taskCount +
+        " | 📅 Nadcházející události: " +
+        upcomingCount;
+    }
+
+    function addTextItem(formId, inputId, type) {
+      $(formId).addEventListener("submit", event => {
+        event.preventDefault();
+
+        const input = $(inputId);
+        const text = input.value.trim();
+
+        if (!text) {
+          return;
+        }
+
+        data[type].push({
+          text: text,
+          done: false
+        });
+
+        saveData();
+        input.value = "";
+        render();
+      });
+    }
+
+    function fillSelect(id, start, end) {
+      const select = $(id);
+
+      for (let number = start; number <= end; number++) {
+        const option = document.createElement("option");
+
+        option.value = number;
+        option.textContent = number;
+
+        select.appendChild(option);
+      }
+    }
+
+    function setupDates() {
+      const now = new Date();
+
+      fillSelect("day", 1, 31);
+      fillSelect("month", 1, 12);
+      fillSelect("year", now.getFullYear() - 5,
+                 now.getFullYear() + 20);
+
+      $("day").value = now.getDate();
+      $("month").value = now.getMonth() + 1;
+      $("year").value = now.getFullYear();
+    }
+
+    function addEvent() {
+      $("eventForm").addEventListener("submit", event => {
+        event.preventDefault();
+
+        const text = $("eventInput").value.trim();
+
+        const day = Number($("day").value);
+        const month = Number($("month").value);
+        const year = Number($("year").value);
+
+        const date = new Date(year, month - 1, day);
+
+        if (
+          date.getFullYear() !== year ||
+          date.getMonth() !== month - 1 ||
+          date.getDate() !== day
+        ) {
+          alert("Zvolené datum není platné.");
+          return;
+        }
+
+        if (!text) {
+          return;
+        }
+
+        const dateKey = [
+          year,
+          String(month).padStart(2, "0"),
+          String(day).padStart(2, "0")
+        ].join("-");
+
+        data.events.push({
+          text: text,
+          date: dateKey
+        });
+
+        saveData();
+        $("eventInput").value = "";
+        render();
+      });
+    }
+
+    function downloadBackup() {
+      const content = JSON.stringify(data, null, 2);
+      const blob = new Blob([content], {
+        type: "application/json"
+      });
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = "familynest-zaloha.json";
+
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function restoreBackup(file) {
+      if (!file) {
+        return;
+      }
+
+      const reader = new FileReader();
+
+      reader.onload = () => {
+        try {
+          const restored = JSON.parse(reader.result);
+
+          if (!validData(restored)) {
+            throw new Error("Neplatná záloha");
+          }
+
+          if (!confirm(
+            "Nahradit současné údaje obsahem zálohy?"
+          )) {
+            return;
+          }
+
+          data = restored;
+          saveData();
+          render();
+
+          alert("Záloha byla načtena.");
+        } catch (error) {
+          alert("Soubor zálohy není platný.");
+        }
+      };
+
+      reader.readAsText(file);
+    }
+
+    function setupBackup() {
+      $("backupButton").addEventListener(
+        "click",
+        downloadBackup
+      );
+
+      $("restoreButton").addEventListener(
+        "click",
+        () => $("restoreFile").click()
+      );
+
+      $("restoreFile").addEventListener(
+        "change",
+        event => {
+          restoreBackup(event.target.files[0]);
+          event.target.value = "";
+        }
+      );
+    }
+
+    function initialize() {
+      storageAvailable = checkStorage();
+
+      loadData();
+      setupDates();
+      setupBackup();
+
+      addTextItem(
+        "shoppingForm",
+        "shoppingInput",
+        "shopping"
+      );
+
+      addTextItem(
+        "taskForm",
+        "taskInput",
+        "tasks"
+      );
+
+      addEvent();
+      render();
+    }
+
+    initialize();
+  </script>
+
+</body>
+</html>
